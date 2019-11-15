@@ -1,5 +1,5 @@
 ##
-#  This Script creates a GCP resource reservation for each compute engine in your project. 
+#  This Script creates a GCP resource reservation for each RUNNING compute engine in your project. 
 #  WARNING: It will delete all existing reservation and loop through each machine in a given project to create a new reservation.
 #  Usage: 
 #       Takes 2 variables:
