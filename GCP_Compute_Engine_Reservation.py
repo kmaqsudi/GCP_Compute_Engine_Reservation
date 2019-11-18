@@ -10,6 +10,7 @@
 #  Requirements: gcloud cli
 #  Author: Alex Dymanis
 #  Date: 11-14-19
+#  Version 1.1
 ##
 
 import os
@@ -29,20 +30,57 @@ else:
 instanceList=os.popen('gcloud compute instances list --filter="status:'+statusFilter+'" --format=json --project='+projectName)
 reservationList=os.popen('gcloud compute reservations list --format=json --project='+projectName)
 
-json_instanceList = json.loads(instanceList.read())
+#
+if onlyDelete == "false":
+    json_instanceList = json.loads(instanceList.read())
+else:
+    json_instanceList = ""
 json_reservationList = json.loads(reservationList.read())
 
-#Delete all existing reservations
-for reservation in json_reservationList:
-    reservationName=reservation["name"]
-    reservationZone=reservation["zone"].rsplit('/', 1)[-1]
-    os.system('gcloud compute reservations delete '+reservationName+' --zone='+reservationZone+' --quiet --project='+projectName)
-    
-#Create a reservation for each machine
+#Validates machines against reservations
+def validateReservation(namePrefixed,instanceZone,instanceType):
+    for reservation in json_reservationList:
+        reservationName=reservation["name"]
+        reservationZone=reservation["zone"].rsplit('/', 1)[-1]
+        reservationType=reservation["specificReservation"]["instanceProperties"]["machineType"]
+
+        if reservationName == namePrefixed:
+            if reservationZone == instanceZone and reservationType == instanceType:
+                return(0, reservationName, reservationZone, reservationType)
+            else:
+                return(1, reservationName, reservationZone, reservationType)
+    return(2, reservationName, reservationZone, reservationType)
+
+
+namePrefixed_all = []
+#Create reservation for each instance
 for instance in json_instanceList:
     instanceName=instance["name"]
     instanceZone=instance["zone"].rsplit('/', 1)[-1]
     instanceType=instance["machineType"].rsplit('/', 1)[-1]
+    namePrefixed="res-"+instanceName
+    namePrefixed_all.append(namePrefixed)
+    if json_reservationList:
+        validateResult = validateReservation(namePrefixed,instanceZone,instanceType)
+        if validateResult[0] == 0: 
+            print("SKIPPING: "+namePrefixed)
+            continue
+        elif validateResult[0] == 1: #recreate
+            print("RECREATING: "+namePrefixed)
+            os.system('gcloud compute reservations delete '+namePrefixed+' --zone='+validateResult[2]+' --quiet --project='+projectName)
+            os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone)
+            continue
 
-    if onlyDelete != "true":
-        os.system('gcloud compute reservations create res-'+instanceName+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone)
+    print("CREATING: "+namePrefixed)
+    os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone)
+
+#Cleanup invalid reservsations 
+for reservation in json_reservationList:
+        reservationName=reservation["name"]
+        reservationZone=reservation["zone"].rsplit('/', 1)[-1]
+        
+        if reservationName not in namePrefixed_all:
+           print("Deleting res: "+reservationName)
+           os.system('gcloud compute reservations delete '+reservationName+' --zone='+reservationZone+' --quiet --project='+projectName)
+
+
