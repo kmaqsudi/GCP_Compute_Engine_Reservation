@@ -10,7 +10,7 @@
 #  Requirements: gcloud cli
 #  Author: Alex Dymanis
 #  Date: 11-14-19
-#  Version 1.1
+#  Version 1.2
 ##
 
 import os
@@ -38,14 +38,20 @@ else:
 json_reservationList = json.loads(reservationList.read())
 
 #Validates machines against reservations
-def validateReservation(namePrefixed,instanceZone,instanceType):
+def validateReservation(namePrefixed,instanceZone,instanceType,instanceLocalDiskCount,instanceLocalDiskInterface):
     for reservation in json_reservationList:
         reservationName=reservation["name"]
         reservationZone=reservation["zone"].rsplit('/', 1)[-1]
         reservationType=reservation["specificReservation"]["instanceProperties"]["machineType"]
+        reservationLocalSSDCount=0
+        reservationLocalSSDInterface=""
+
+        if "localSsds" in reservation["specificReservation"]["instanceProperties"]:
+            reservationLocalSSDCount = len(reservation["specificReservation"]["instanceProperties"]["localSsds"])
+            reservationLocalSSDInterface = reservation["specificReservation"]["instanceProperties"]["localSsds"][0]["interface"]
 
         if reservationName == namePrefixed:
-            if reservationZone == instanceZone and reservationType == instanceType:
+            if reservationZone == instanceZone and reservationType == instanceType and reservationLocalSSDCount == instanceLocalDiskCount and reservationLocalSSDInterface == instanceLocalDiskInterface:
                 return(0, reservationName, reservationZone, reservationType)
             else:
                 return(1, reservationName, reservationZone, reservationType)
@@ -60,19 +66,34 @@ for instance in json_instanceList:
     instanceType=instance["machineType"].rsplit('/', 1)[-1]
     namePrefixed="res-"+instanceName
     namePrefixed_all.append(namePrefixed)
+    instanceDisks=instance["disks"]
+    instanceLocalDiskCount = 0
+    instanceLocalDiskInterface = ""
+    localSSD = ""
+
+    for instanceLocalDisk in instanceDisks:
+        if instanceLocalDisk["type"] == "SCRATCH":
+            instanceLocalDiskCount += 1
+            instanceLocalDiskInterface=instanceLocalDisk["interface"]
+
+    # Append local-ssd parameter to cli
+    if instanceLocalDiskCount > 0:
+        for _ in range(instanceLocalDiskCount):
+            localSSD += " --local-ssd=interface="+ instanceLocalDiskInterface + ",size=375"
+
     if json_reservationList:
-        validateResult = validateReservation(namePrefixed,instanceZone,instanceType)
+        validateResult = validateReservation(namePrefixed,instanceZone,instanceType,instanceLocalDiskCount,instanceLocalDiskInterface)
         if validateResult[0] == 0: 
             print("SKIPPING: "+namePrefixed)
             continue
         elif validateResult[0] == 1: #recreate
             print("RECREATING: "+namePrefixed)
             os.system('gcloud compute reservations delete '+namePrefixed+' --zone='+validateResult[2]+' --quiet --project='+projectName)
-            os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone)
+            os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone+localSSD)
             continue
 
     print("CREATING: "+namePrefixed)
-    os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone)
+    os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone+localSSD)
 
 #Cleanup invalid reservsations 
 for reservation in json_reservationList:
