@@ -95,7 +95,7 @@ for instance in json_instanceList:
     print("CREATING: "+namePrefixed)
     os.system('gcloud compute reservations create '+namePrefixed+' --machine-type='+instanceType+' --vm-count=1 --project='+projectName+' --zone='+instanceZone+localSSD)
 
-#Cleanup invalid reservsations 
+#Cleanup invalid reservations 
 for reservation in json_reservationList:
         reservationName=reservation["name"]
         reservationZone=reservation["zone"].rsplit('/', 1)[-1]
