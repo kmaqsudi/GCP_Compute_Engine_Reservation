@@ -11,12 +11,22 @@
 #  Author: Alex Dymanis
 #  Date: 11-14-19
 #  Version 1.2
+#
+#
+#  Update 09-16-2021 by Khalid Maqsudi
+#  Version 1.3
+#  First argument will be your project name.  example:  
+#  $ python GCP_Compute_Engine_Reservation.py my-dev-project-name
 ##
 
 import os
 import json
+import sys
 
-projectName="MY_GCP_PROJECT"
+my_gcp_project=sys.argv[1]
+
+#projectName="MY_GCP_PROJECT"
+projectName=my_gcp_project
 onlyDelete="false"
 onlyRunning="true"
 
