@@ -17,6 +17,9 @@
 #  Version 1.3
 #  First argument will be your project name.  example:  
 #  $ python GCP_Compute_Engine_Reservation.py my-dev-project-name
+#
+#
+#  removed:  projectName="MY_GCP_PROJECT"
 ##
 
 import os
@@ -25,7 +28,6 @@ import sys
 
 my_gcp_project=sys.argv[1]
 
-#projectName="MY_GCP_PROJECT"
 projectName=my_gcp_project
 onlyDelete="false"
 onlyRunning="true"
